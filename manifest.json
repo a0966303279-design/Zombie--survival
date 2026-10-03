@@ -1,0 +1,11 @@
+{
+  "name": "Zombie Survival",
+  "short_name": "Zombie Survival",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#111111",
+  "theme_color": "#111111",
+  "description": "2D 殭屍生存射擊遊戲"
+}
