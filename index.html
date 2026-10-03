@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head><link rel="manifest" href="./manifest.json"><meta name="theme-color" content="#111111"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#111">
+<title>Zombie Survival</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;background:#111;color:#fff;font-family:system-ui,"Noto Sans TC",sans-serif;overflow:hidden}
+button{font:inherit}
+.screen{width:min(92vw,520px);min-height:100vh;margin:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center}
+h1{font-size:clamp(32px,8vw,54px);margin:0 0 10px}
+h2{font-size:34px;margin:0 0 10px}
+.records{width:100%;background:#1d1d1d;border-radius:18px;padding:18px;display:grid;gap:10px;font-size:20px}
+.records b{color:#ffd54a}
+.mainBtn{width:min(360px,85vw);border:0;border-radius:16px;padding:16px 24px;background:#e53935;color:#fff;font-weight:800;font-size:22px;cursor:pointer}
+.mainBtn.secondary{background:#333}
+.hidden{display:none!important}
+#game{position:fixed;inset:0;background:#182019}
+#canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+#hud{position:absolute;left:0;right:0;top:0;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;display:flex;justify-content:center;gap:18px;font-weight:800;font-size:18px;text-shadow:0 2px 3px #000;pointer-events:none}
+#waveMsg{position:absolute;top:75px;left:0;right:0;text-align:center;font-size:30px;font-weight:900;text-shadow:0 2px 4px #000;pointer-events:none}
+#controls{position:absolute;inset:0;pointer-events:none;z-index:10}
+#joystick{position:absolute;left:22px;bottom:24px;width:145px;height:145px;border-radius:50%;background:rgba(255,255,255,.18);border:3px solid rgba(255,255,255,.55);pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#stick{position:absolute;left:48px;top:48px;width:49px;height:49px;border-radius:50%;background:rgba(255,255,255,.78);box-shadow:0 3px 12px #0008}
+#fire{position:absolute;right:28px;bottom:38px;width:105px;height:105px;border-radius:50%;border:3px solid #ffffff66;background:#d32f2fdd;color:white;font-size:38px;pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#exitBtn{position:absolute;right:12px;top:calc(45px + env(safe-area-inset-top));width:42px;height:42px;border:0;border-radius:12px;background:#0008;color:#fff;font-size:20px}
+.overlay{position:fixed;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;z-index:20}
+.panel{width:min(380px,88vw);background:#202020;border-radius:20px;padding:28px;text-align:center;box-shadow:0 10px 40px #000}
+.panel p{font-size:20px}
+#shopItems{width:100%;display:grid;gap:12px}
+.shopItem{background:#1d1d1d;border-radius:16px;padding:16px;text-align:left}
+.shopItem .row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.shopItem button{border:0;border-radius:10px;background:#ffb300;color:#111;font-weight:800;padding:10px 14px}
+@media (min-width:700px){
+  #joystick{display:block;opacity:.92}
+  #fire{width:82px;height:82px;font-size:30px;bottom:28px;right:28px}
+}
+
+</style>
+</head>
+<body>
+<div id="app">
+  <section id="home" class="screen">
+    <h1>🧟 Zombie Survival</h1>
+    <div class="records">
+      <div>最高擊殺 <b id="bestKills">0</b></div>
+      <div>最高波數 <b id="bestWave">0</b></div>
+      <div>金幣 <b id="homeCoins">0</b> 🪙</div>
+    </div>
+    <button id="startBtn" class="mainBtn">▶ 開始遊戲</button>
+    <button id="shopBtn" class="mainBtn secondary">🛒 商店</button>
+  </section>
+
+  <section id="shop" class="screen hidden">
+    <h2>🛒 商店</h2>
+    <div id="shopItems"></div>
+    <button id="backBtn" class="mainBtn secondary">← 返回</button>
+  </section>
+
+  <section id="game" class="hidden">
+    <canvas id="canvas"></canvas>
+    <div id="hud">
+      <span>❤️ <b id="hp">100</b></span>
+      <span>🧟 波 <b id="wave">1</b></span>
+      <span>☠️ <b id="kills">0</b></span>
+      <span>🪙 <b id="coins">0</b></span>
+    </div>
+    <div id="waveMsg"></div>
+    <div id="controls">
+      <div id="joystick"><div id="stick"></div></div>
+      <button id="fire">🔫</button>
+    </div>
+    <button id="exitBtn">✕</button>
+  </section>
+
+  <div id="gameOver" class="overlay hidden">
+    <div class="panel">
+      <h2>☠️ 遊戲結束</h2>
+      <p>擊殺：<b id="finalKills">0</b></p>
+      <p>撐過：<b id="finalWave">0</b> 波</p>
+      <button id="retryBtn" class="mainBtn">↻ 再玩一次</button>
+      <button id="homeBtn" class="mainBtn secondary">🏠 回首頁</button>
+    </div>
+  </div>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const canvas=$("canvas"),ctx=canvas.getContext("2d");
+let W=innerWidth,H=innerHeight,raf=0,last=0,playing=false,fireHeld=false,shotTimer=0;
+let player,zombies=[],bullets=[],particles=[],wave=1,kills=0,coins=0,waveRemaining=0,waveCleared=false;
+let bestKills=+localStorage.bestKills||0,bestWave=+localStorage.bestWave||0,storedCoins=+localStorage.coins||0;
+let upgrades=JSON.parse(localStorage.upgrades||'{"weapon":0,"armor":0,"speed":0}');
+const maxLv=10;
+function save(){localStorage.bestKills=bestKills;localStorage.bestWave=bestWave;localStorage.coins=storedCoins;localStorage.upgrades=JSON.stringify(upgrades)}
+function resize(){W=canvas.width=innerWidth*devicePixelRatio;H=canvas.height=innerHeight*devicePixelRatio;canvas.style.width=innerWidth+"px";canvas.style.height=innerHeight+"px";ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);W=innerWidth;H=innerHeight}
+addEventListener("resize",resize); resize();
+function home(){playing=false;$("home").classList.remove("hidden");$("shop").classList.add("hidden");$("game").classList.add("hidden");$("gameOver").classList.add("hidden");$("bestKills").textContent=bestKills;$("bestWave").textContent=bestWave;$("homeCoins").textContent=storedCoins}
+function enterGame(){
+  $("home").classList.add("hidden");$("shop").classList.add("hidden");$("game").classList.remove("hidden");
+  player={x:W/2,y:H/2,r:17,hp:100,maxHp:100+upgrades.armor*12,speed:220+upgrades.speed*18,angle:0};
+  zombies=[];bullets=[];particles=[];wave=1;kills=0;coins=0;waveRemaining=0;waveCleared=false;playing=true;last=performance.now();
+  try{document.documentElement.requestFullscreen?.()}catch(e){}
+  spawnWave(); raf=requestAnimationFrame(loop);
+}
+function endGame(){
+  playing=false;cancelAnimationFrame(raf);
+  bestKills=Math.max(bestKills,kills);bestWave=Math.max(bestWave,Math.max(0,wave-1));storedCoins+=coins;save();
+  $("finalKills").textContent=kills;$("finalWave").textContent=Math.max(0,wave-1);$("gameOver").classList.remove("hidden");
+}
+function spawnWave(){
+  waveRemaining=5+wave*3; waveCleared=false;
+  $("wave").textContent=wave;
+  $("waveMsg").textContent=`第 ${wave} 波`;
+  setTimeout(()=>$("waveMsg").textContent="",900);
+  for(let i=0;i<waveRemaining;i++)spawnZombie();
+}
+function spawnZombie(){
+  const side=Math.floor(Math.random()*4),pad=50; let x,y;
+  if(side===0){x=Math.random()*W;y=-pad}else if(side===1){x=W+pad;y=Math.random()*H}else if(side===2){x=Math.random()*W;y=H+pad}else{x=-pad;y=Math.random()*H}
+  const speed=42+wave*7+Math.random()*18;
+  zombies.push({x,y,r:14+Math.min(9,wave*.4),hp:1+Math.floor(wave/4),maxHp:1+Math.floor(wave/4),speed});
+}
+function shoot(){
+  if(!playing)return;
+  // 槍管裝在角色後方，所以子彈從後方槍管射出，方向與角色面向相反。
+  const a=player.angle + Math.PI;
+  const barrelX=player.x+Math.cos(a)*42;
+  const barrelY=player.y+Math.sin(a)*42;
+  const damage=1+upgrades.weapon;
+  bullets.push({
+    x:barrelX,y:barrelY,
+    vx:Math.cos(a)*650,vy:Math.sin(a)*650,
+    r:4,damage
+  });
+}
+function update(dt){
+  let dx=keys.d?1:keys.a?-1:0,dy=keys.s?1:keys.w?-1:0;
+  if(Math.hypot(joy.x,joy.y)>.08){dx=joy.x;dy=joy.y}
+  const len=Math.hypot(dx,dy);if(len){dx/=len;dy/=len;player.x+=dx*player.speed*dt;player.y+=dy*player.speed*dt;player.angle=Math.atan2(dy,dx)}
+  player.x=Math.max(20,Math.min(W-20,player.x));player.y=Math.max(20,Math.min(H-20,player.y));
+  if(fireHeld){shotTimer-=dt;if(shotTimer<=0){shoot();shotTimer=.12}}
+  for(const b of bullets){b.x+=b.vx*dt;b.y+=b.vy*dt}
+  bullets=bullets.filter(b=>b.x>-30&&b.x<W+30&&b.y>-30&&b.y<H+30);
+  for(const z of zombies){
+    const a=Math.atan2(player.y-z.y,player.x-z.x),d=Math.hypot(player.x-z.x,player.y-z.y);
+    if(d>player.r+z.r-2){z.x+=Math.cos(a)*z.speed*dt;z.y+=Math.sin(a)*z.speed*dt}
+    else {player.hp-=18*dt}
+  }
+  for(let i=zombies.length-1;i>=0;i--)for(let j=bullets.length-1;j>=0;j--){
+    const z=zombies[i],b=bullets[j];
+    if(Math.hypot(z.x-b.x,z.y-b.y)<z.r+b.r){z.hp-=b.damage;bullets.splice(j,1);if(z.hp<=0){kills++;waveRemaining--;burst(z.x,z.y);zombies.splice(i,1)}break}
+  }
+  if(player.hp<=0){endGame();return}
+  if(zombies.length===0&&!waveCleared){waveCleared=true;const reward=100+(wave-1)*10;coins+=reward;setTimeout(()=>{if(playing){wave++;spawnWave()}},1100)}
+  $("hp").textContent=Math.max(0,Math.ceil(player.hp));$("kills").textContent=kills;$("coins").textContent=coins;
+}
+function burst(x,y){for(let i=0;i<8;i++){const a=Math.random()*Math.PI*2;particles.push({x,y,vx:Math.cos(a)*80,vy:Math.sin(a)*80,t:.5})}}
+function draw(){
+  ctx.fillStyle="#172019";ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle="#223025";ctx.lineWidth=1;for(let x=0;x<W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}for(let y=0;y<H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
+  for(const p of particles){ctx.globalAlpha=p.t/.5;ctx.fillStyle="#a5d66a";ctx.beginPath();ctx.arc(p.x,p.y,3,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;p.x+=p.vx/60;p.y+=p.vy/60;p.t-=1/60}
+  particles=particles.filter(p=>p.t>0);
+  for(const b of bullets){ctx.fillStyle="#ffd54a";ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fill()}
+  for(const z of zombies){ctx.fillStyle="#65a85b";ctx.beginPath();ctx.arc(z.x,z.y,z.r,0,Math.PI*2);ctx.fill();ctx.fillStyle="#111";ctx.beginPath();ctx.arc(z.x-5,z.y-3,2,0,7);ctx.arc(z.x+5,z.y-3,2,0,7);ctx.fill();if(z.maxHp>1){ctx.fillStyle="#111";ctx.fillRect(z.x-z.r,z.y-z.r-7,z.r*2,4);ctx.fillStyle="#e53935";ctx.fillRect(z.x-z.r,z.y-z.r-7,(z.r*2)*(z.hp/z.maxHp),4)}}
+  ctx.save();
+  ctx.translate(player.x,player.y);ctx.rotate(player.angle);
+  // 槍裝在角色背後，槍口朝角色後方。
+  ctx.fillStyle="#3b3b3b";
+  ctx.fillRect(-34,-5,30,10);
+  ctx.fillStyle="#bdbdbd";
+  ctx.fillRect(-44,-3,12,6);
+  ctx.fillStyle="#4fc3f7";
+  ctx.beginPath();ctx.arc(0,0,player.r,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle="#ddd";
+  ctx.fillRect(-5,-4,12,8);
+  ctx.restore();
+}
+function loop(t){if(!playing)return;const dt=Math.min(.033,(t-last)/1000);last=t;update(dt);draw();if(playing)raf=requestAnimationFrame(loop)}
+const keys={};addEventListener("keydown",e=>{keys[e.key.toLowerCase()]=true;if(e.code==="Space")fireHeld=true});addEventListener("keyup",e=>{keys[e.key.toLowerCase()]=false;if(e.code==="Space")fireHeld=false});
+let joy={x:0,y:0},joyId=null;
+const joyEl=$("joystick"), stickEl=$("stick");
+function joyUpdate(e){
+  const r=joyEl.getBoundingClientRect();
+  const cx=r.left+r.width/2, cy=r.top+r.height/2;
+  let dx=e.clientX-cx,dy=e.clientY-cy;
+  const max=48, dist=Math.hypot(dx,dy);
+  if(dist>max){dx=dx/dist*max;dy=dy/dist*max}
+  joy={x:dx/max,y:dy/max};
+  stickEl.style.transform=`translate(${dx}px,${dy}px)`;
+}
+function joyStart(e){
+  e.preventDefault(); joyId=e.pointerId;
+  try{joyEl.setPointerCapture(e.pointerId)}catch(_){}
+  joyUpdate(e);
+}
+function joyMove(e){if(e.pointerId===joyId){e.preventDefault();joyUpdate(e)}}
+function joyEnd(e){
+  if(e.pointerId!==joyId)return;
+  joy={x:0,y:0};stickEl.style.transform="translate(0,0)";joyId=null;
+}
+joyEl.addEventListener("pointerdown",joyStart);
+joyEl.addEventListener("pointermove",joyMove);
+joyEl.addEventListener("pointerup",joyEnd);
+joyEl.addEventListener("pointercancel",joyEnd);
+joyEl.addEventListener("lostpointercapture",joyEnd);
+$("fire").addEventListener("pointerdown",e=>{e.preventDefault();fireHeld=true;shoot()});["pointerup","pointercancel","pointerleave"].forEach(ev=>$("fire").addEventListener(ev,()=>fireHeld=false));
+$("startBtn").onclick=enterGame;$("shopBtn").onclick=()=>{ $("home").classList.add("hidden");$("shop").classList.remove("hidden");renderShop()};$("backBtn").onclick=home;
+$("exitBtn").onclick=()=>{if(confirm("確定離開這場遊戲？")){try{document.exitFullscreen?.()}catch(e){}home()}};
+$("retryBtn").onclick=()=>{$("gameOver").classList.add("hidden");enterGame()};$("homeBtn").onclick=()=>{ $("gameOver").classList.add("hidden");try{document.exitFullscreen?.()}catch(e){}home()};
+function renderShop(){
+ const defs=[["weapon","🔫 武器","每級 +1 傷害",50],["armor","❤️ 護甲","每級 +12 最大生命",60],["speed","⚡ 移動速度","每級 +18 移動速度",70]];
+ $("shopItems").innerHTML=defs.map(([id,n,d,c])=>{const lv=upgrades[id];const cost=c*(lv+1);return `<div class="shopItem"><div class="row"><div><b>${n}</b><br>等級 ${lv}/${maxLv}<br><small>${d}</small></div><button ${lv>=maxLv||storedCoins<cost?"disabled":""} data-buy="${id}">${lv>=maxLv?"MAX":`升級 ${cost} 🪙`}</button></div></div>`}).join("");
+ $("shopItems").querySelectorAll("[data-buy]").forEach(b=>b.onclick=()=>{const id=b.dataset.buy,base={weapon:50,armor:60,speed:70}[id],cost=base*(upgrades[id]+1);if(upgrades[id]<maxLv&&storedCoins>=cost){storedCoins-=cost;upgrades[id]++;save();renderShop();$("homeCoins").textContent=storedCoins}});
+}
+home();
+
+
+// Touch fallback for Android browsers: use the left half of the game screen as a virtual stick.
+let fallbackTouchId=null;
+canvas.addEventListener("touchstart",e=>{
+  if(!playing || fallbackTouchId!==null)return;
+  const t=e.changedTouches[0];
+  if(t.clientX < innerWidth*0.48 && t.clientY > innerHeight*0.45){
+    fallbackTouchId=t.identifier;
+    joy={x:0,y:0};
+    e.preventDefault();
+  }
+},{passive:false});
+canvas.addEventListener("touchmove",e=>{
+  if(fallbackTouchId===null)return;
+  for(const t of e.changedTouches){
+    if(t.identifier===fallbackTouchId){
+      const baseX=Math.min(110,innerWidth*0.25), baseY=innerHeight-95;
+      let dx=t.clientX-baseX,dy=t.clientY-baseY,dist=Math.hypot(dx,dy),max=75;
+      if(dist>max){dx=dx/dist*max;dy=dy/dist*max}
+      joy={x:dx/max,y:dy/max};
+      e.preventDefault();break;
+    }
+  }
+},{passive:false});
+function fallbackEnd(e){
+  for(const t of e.changedTouches)if(t.identifier===fallbackTouchId){
+    fallbackTouchId=null;joy={x:0,y:0};
+  }
+}
+canvas.addEventListener("touchend",fallbackEnd,{passive:false});
+canvas.addEventListener("touchcancel",fallbackEnd,{passive:false});
+
+</script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));}</script></body>
+</html>
